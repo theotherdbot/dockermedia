@@ -1,0 +1,135 @@
+version: '3.4'
+services:
+
+  vpn:
+    container_name: vpn
+    image: dbotamous/openvpn-client:latest
+    cap_add:
+      - net_admin # required to modify network interfaces
+    restart: always
+    environment:
+      - PUID=1000 # default user id, for  files access rights
+      - PGID=1212 # default group id, for  files access rights. Will need to change this
+    volumes:
+      - /dev/net/tun:/dev/net/tun # tun device
+      - ${HOME}/docker/.vpn:/vpn 
+    dns: # setting PIA DNS to fix dns leak issues
+      - 209.222.18.222
+      - 209.222.18.218
+    ports:
+      - 8989:8989 # sonarr port
+      - 7878:7878 # radarr port
+      - 8080:8080 # qbit port
+      - 6881:6881 # qbit torrent port
+      - 9117:9117 # jackett port
+    command: '-r 192.168.0.0/16' # route local subnet network traffic. Using a /16 here cause of VPN clients. Consider using /24.
+
+  sonarr:
+    container_name: sonarr
+    image: linuxserver/sonarr:latest
+    restart: always
+    depends_on:
+    - vpn
+    network_mode: service:vpn # use VPN container for network.
+    environment:
+      - PUID=1000 # default user id, for  files access rights
+      - PGID=1212 # default group id, for  files access rights. Will need to change this
+      - TZ=America/Denver # timezone
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${HOME}/docker/.config/sonarr:/config # config files
+      - ${HOME}/media/tv:/tv # tv shows folder
+      - ${HOME}/downloads:/downloads # download folder
+
+  radarr:
+    container_name: radarr
+    image: linuxserver/radarr:latest
+    restart: always
+    depends_on:
+    - vpn
+    network_mode: service:vpn # use VPN container for network.
+    environment:
+      - PUID=1000 # default user id, for  files access rights
+      - PGID=1212 # default group id, for  files access rights. Will need to change this
+      - TZ=America/Denver # timezone
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${HOME}/docker/.config/radarr:/config # config files
+      - ${HOME}/media/movies:/movies # movies folder
+      - ${HOME}/downloads:/downloads # download folder
+
+  sabnzbd:
+    image: linuxserver/sabnzbd
+    container_name: sabnzbd
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Denver # timezone
+    volumes:
+      - ${HOME}/docker/.config/sabnzbd:/config
+      - ${HOME}/downloads:/downloads
+    ports:
+      - 8888:8080
+      - 9191:9090
+    restart: unless-stopped # Change to always if I deceide to use NZB more.
+
+  qbittorrent:
+    image: linuxserver/qbittorrent
+    container_name: qbittorrent
+    restart: always
+    depends_on:
+    - vpn
+    network_mode: service:vpn 
+    environment:
+      - PUID=1000
+      - PGID=1212 # default group id, for  files access rights. Will need to change this
+      - TZ=America/Denver
+      - UMASK_SET=022
+      - WEBUI_PORT=8080
+    volumes:
+      - ${HOME}/docker/.config/qbit:/config
+      - ${HOME}/downloads:/downloads
+
+  plexpy:
+    image: linuxserver/tautulli:latest
+    container_name: plexpy
+    restart: always
+    network_mode: bridge
+    ports:
+      - 8181:8181
+    environment:
+      - PUID=1000 # default user id, for  files access rights
+      - PGID=1212 # default group id, for  files access rights. Will need to change this
+      - TZ=America/Denver
+    volumes:
+      - ${HOME}/docker/.config/plexpy:/config
+
+  organizr:
+    image: organizrtools/organizr-v2:latest
+    container_name: organizr
+    network_mode: bridge
+    restart: always
+    ports:
+      - 80:80
+    volumes:
+      - ${HOME}/docker/.config/organizr:/config
+    environment:
+      - PUID=1000 # default user id, for  files access rights
+      - PGID=1212 # default group id, for  files access rights. Will need to change this
+      - TZ=America/Denver
+
+  jackett:
+    container_name: jackett
+    image: linuxserver/jackett:latest
+    restart: always
+    depends_on:
+    - vpn
+    network_mode: service:vpn # use VPN container for network
+    environment:
+      - PUID=1000 # default user id, for  files access rights
+      - PGID=1212 # default group id, for  files access rights. Will need to change this
+      - TZ=America/Denver # timezone
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${HOME}/downloads/blackhole:/downloads # place where to put .torrent files
+      - ${HOME}/docker/.config/jackett:/config # config files
