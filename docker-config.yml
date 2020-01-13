@@ -71,7 +71,7 @@ services:
     ports:
       - 8888:8080
       - 9191:9090
-    restart: unless-stopped # Change to always if I deceide to use NZB more.
+    restart: unless-stopped # Change to always if I decide to use NZB more.
 
   qbittorrent:
     image: linuxserver/qbittorrent
